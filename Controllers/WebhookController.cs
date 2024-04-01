@@ -11,7 +11,16 @@ namespace asp_net_core_storycanvas_webhook.Controllers
     [ApiController]
     public class WebhookController : ControllerBase
     {
+        
+        private readonly IHttpContextAccessor _httpContextAccessor;
+
+        public WebhookController(IHttpContextAccessor httpContextAccessor)
+        {
+            _httpContextAccessor = httpContextAccessor;
+        }
+
         [HttpPost]
+        
         public async Task<IActionResult> Post([FromBody] WebhookData data)
         {
 
@@ -35,16 +44,42 @@ namespace asp_net_core_storycanvas_webhook.Controllers
                     string fullPath = $"{projectDirectory}{relativePath}";
                     #pragma warning disable CS8600
                     string directory = Path.GetDirectoryName(fullPath);
-                    #pragma warning restore CS8600
-                    
+                    if (string.IsNullOrEmpty(directory))
+                    {
+                        // Handle the error appropriately, could be throwing an exception, logging it, etc.
+                        throw new Exception("The directory path is null or empty.");
+                    }
                     if (!Directory.Exists(directory))
                     {
-                        #pragma warning disable CS8604
                         Directory.CreateDirectory(directory);
-                        #pragma warning restore CS8604
                     }
                     
-                    await System.IO.File.WriteAllBytesAsync($"{directory}/{fileName}", fileBytes);
+                    // Write the new file.
+                    string filePath = $"{directory}/{fileName}";
+                    await System.IO.File.WriteAllBytesAsync(filePath, fileBytes);
+                    
+                    // Overwrite the s3 domain with the app's domain if the site is live.
+                    if (data.IsLive)
+                    {
+                        // Read the file content
+                        string content = await System.IO.File.ReadAllTextAsync(filePath);
+
+                        string find = $"{data.Name}.s3-website.us-east-2.amazonaws.com";
+
+                        if (_httpContextAccessor.HttpContext != null)
+                        {
+                            string replace = $"{_httpContextAccessor.HttpContext.Request.Host}";
+                             // Replace the string you need with data.Domain
+                            string newContent = content.Replace(find, replace);
+                            // Write the modified content back to the file
+                            await System.IO.File.WriteAllTextAsync(filePath, newContent);
+                        }
+                        else
+                        {
+                            // Handle the error appropriately
+                            throw new Exception("HttpContext is null.");
+                        }
+                    }
                 }
             }
 

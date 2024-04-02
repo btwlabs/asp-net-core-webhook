@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -13,18 +14,33 @@ namespace asp_net_core_storycanvas_webhook.Controllers
     {
         
         private readonly IHttpContextAccessor _httpContextAccessor;
-
-        public WebhookController(IHttpContextAccessor httpContextAccessor)
+        private readonly IConfiguration _configuration;
+        
+        public WebhookController(IHttpContextAccessor httpContextAccessor, IConfiguration configuration)
         {
             _httpContextAccessor = httpContextAccessor;
+            _configuration = configuration;
         }
 
         [HttpPost]
         
         public async Task<IActionResult> Post([FromBody] WebhookData data)
         {
+            // Get the API key from the headers
+            const string apikeyHeaderName = "X-API-KEY";
+            if (!Request.Headers.TryGetValue(apikeyHeaderName, out var receivedApikey)) {
+                return Unauthorized();
+            }
 
-            // validate the Urls here
+            var expectedApikey = _configuration["ApiKey"];
+            
+            // Compare the received API key with the expected one
+            if (!string.Equals(receivedApikey, expectedApikey, StringComparison.OrdinalIgnoreCase)) {
+                return Unauthorized();
+            }
+            
+            
+            // Copy from all of the Urls.
             foreach (var url in data.Urls)
             {
                 // Download the file

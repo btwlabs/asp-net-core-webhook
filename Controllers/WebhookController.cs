@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
+using System.IO.Compression;
 using System.Net.Http;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using asp_net_core_storycanvas_webhook.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -15,6 +17,36 @@ namespace asp_net_core_storycanvas_webhook.Controllers
         
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IConfiguration _configuration;
+        private readonly string siteDirectory = Path.Combine( Directory.GetCurrentDirectory(), "wwwroot");
+        private readonly string backupDirectory = Path.Combine( Directory.GetCurrentDirectory(), "Backups");
+        
+        private void DeleteSite()
+        {
+            DirectoryInfo directory = new DirectoryInfo(this.siteDirectory);
+
+            foreach (FileInfo file in directory.GetFiles())
+            {
+                file.Delete(); 
+            }
+            foreach (DirectoryInfo subDirectory in directory.GetDirectories())
+            {
+                subDirectory.Delete(true);
+            }
+        }
+        
+        private void BackupSite()
+        {
+            // Specify backup directory in the root of your solution
+            Directory.CreateDirectory(this.backupDirectory);
+    
+            // Generate a backup file name
+            string backupFileName = $"backup_{DateTime.Now:yyyyMMddHHmmss}.zip";
+            string backupFilePath = Path.Combine(this.backupDirectory, backupFileName);
+    
+            // Create the zip file
+            ZipFile.CreateFromDirectory(this.siteDirectory, backupFilePath,
+                CompressionLevel.Optimal, false);
+        }
         
         public WebhookController(IHttpContextAccessor httpContextAccessor, IConfiguration configuration)
         {
@@ -26,6 +58,7 @@ namespace asp_net_core_storycanvas_webhook.Controllers
         
         public async Task<IActionResult> Post([FromBody] WebhookData data)
         {
+            // DO AUTHENTICATION.
             // Get the API key from the headers
             const string apikeyHeaderName = "X-API-KEY";
             if (!Request.Headers.TryGetValue(apikeyHeaderName, out var receivedApikey)) {
@@ -39,7 +72,16 @@ namespace asp_net_core_storycanvas_webhook.Controllers
                 return Unauthorized();
             }
             
+            // CLEAN THE SITE DIRECTORY.
+            // Create a backup of current site if it is live.
+            if (data.IsLive)
+            {
+                BackupSite();
+            }
+            // Delete contents before re-deployment.
+            DeleteSite();
             
+            // GET ALL OF THE SITE'S FILES.
             // Copy from all of the Urls.
             foreach (var url in data.Urls)
             {
@@ -53,31 +95,45 @@ namespace asp_net_core_storycanvas_webhook.Controllers
                     string relativePath = string.Join("", uri.Segments.Take(uri.Segments.Length - 1));
 
                     // Get the data.
-                    var fileBytes = await client.GetByteArrayAsync(url);
-                    
-                    // Figure the local filepath and create it if not existing.
-                    string projectDirectory = Path.Combine( Directory.GetCurrentDirectory(), "wwwroot");
-                    string fullPath = $"{projectDirectory}{relativePath}";
-                    #pragma warning disable CS8600
-                    string directory = Path.GetDirectoryName(fullPath);
-                    if (string.IsNullOrEmpty(directory))
+                    byte[]? fileBytes = null;
+                    try
                     {
-                        // Handle the error appropriately, could be throwing an exception, logging it, etc.
-                        throw new Exception("The directory path is null or empty.");
+                        fileBytes = await client.GetByteArrayAsync(url);
                     }
-                    if (!Directory.Exists(directory))
+                    catch (Exception e)
                     {
-                        Directory.CreateDirectory(directory);
+                        Console.WriteLine(e);
+                        throw;
                     }
-                    
-                    // Write the new file.
-                    string filePath = $"{directory}/{fileName}";
-                    await System.IO.File.WriteAllBytesAsync(filePath, fileBytes);
-                    
-                    // Overwrite the s3 domain with the app's domain if the site is live.
-                    if (data.IsLive)
-                    {
-                        // Read the file content
+
+                    if (fileBytes != null) {
+                        // Figure the local filepath and create it if not existing.
+                        string fullPath = $"{this.siteDirectory}{relativePath}";
+                        #pragma warning disable CS8600
+                        string directory = Path.GetDirectoryName(fullPath);
+                        if (string.IsNullOrEmpty(directory))
+                        {
+                            // Handle the error appropriately, could be throwing an exception, logging it, etc.
+                            throw new Exception("The directory path is null or empty.");
+                        }
+                        if (!Directory.Exists(directory))
+                        {
+                            Directory.CreateDirectory(directory);
+                        }
+                        
+                        // Write the new file.
+                        string filePath = $"{directory}/{fileName}";
+                        try
+                        {
+                            await System.IO.File.WriteAllBytesAsync(filePath, fileBytes);
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                            throw;
+                        }
+                        
+                        // Overwrite the s3 domain with the app's domain.
                         string content = await System.IO.File.ReadAllTextAsync(filePath);
 
                         string find = $"{data.Name}.s3-website.us-east-2.amazonaws.com";
@@ -85,7 +141,7 @@ namespace asp_net_core_storycanvas_webhook.Controllers
                         if (_httpContextAccessor.HttpContext != null)
                         {
                             string replace = $"{_httpContextAccessor.HttpContext.Request.Host}";
-                             // Replace the string you need with data.Domain
+                            // Replace the string you need with data.Domain
                             string newContent = content.Replace(find, replace);
                             // Write the modified content back to the file
                             await System.IO.File.WriteAllTextAsync(filePath, newContent);
@@ -96,6 +152,7 @@ namespace asp_net_core_storycanvas_webhook.Controllers
                             throw new Exception("HttpContext is null.");
                         }
                     }
+                    
                 }
             }
 

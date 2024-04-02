@@ -7,3 +7,4 @@ riderModule.iml
 wwwroot/
 .idea/
 appsettings.*
+Backups/*

@@ -24,9 +24,6 @@ if (args.Contains("--service"))
     builder.Host.UseWindowsService();
 }
 
-// Build the host
-IHost host = builder.Build();
-
 // Now build the web app
 using var app = builder.Build();
 
@@ -51,4 +48,4 @@ app.UseAuthorization();
 app.MapControllers();
 
 // Run the host
-host.Run();
+app.Run();

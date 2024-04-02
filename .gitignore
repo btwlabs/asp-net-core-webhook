@@ -6,3 +6,4 @@ riderModule.iml
 # ignore the actual website files.
 wwwroot/
 .idea/
+appsettings.*

@@ -135,17 +135,11 @@ namespace asp_net_core_storycanvas_webhook.Controllers
                         // Only proceed if this is and expected http request.
                         if (_httpContextAccessor.HttpContext != null)
                         {
-                            string replace = $"{_httpContextAccessor.HttpContext.Request.Host}";
-                            bool useLiveDomain = false;
-                            if (bool.TryParse(_configuration["UseLiveDomainForLinks"], out var parsedVal))
-                            {
-                                useLiveDomain = parsedVal;
-                            }                            
-                            if (useLiveDomain)
+                            string replace = data.Domain; 
+                            if (!data.IsLive)
                             { 
-                                replace = data.Domain;
+                                replace = $"{_httpContextAccessor.HttpContext.Request.Host}";
                             }
-                            
                             // Replace the string you need with data.Domain
                             string newContent = content.Replace(find, replace);
                             // Write the modified content back to the file

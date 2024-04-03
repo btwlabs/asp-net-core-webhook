@@ -1,10 +1,4 @@
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.IO;
 using System.IO.Compression;
-using System.Net.Http;
-using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
 using asp_net_core_storycanvas_webhook.Models;
 using Microsoft.AspNetCore.Mvc;
 
@@ -17,12 +11,12 @@ namespace asp_net_core_storycanvas_webhook.Controllers
         
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IConfiguration _configuration;
-        private readonly string siteDirectory = Path.Combine( Directory.GetCurrentDirectory(), "wwwroot");
-        private readonly string backupDirectory = Path.Combine( Directory.GetCurrentDirectory(), "Backups");
+        private readonly string _siteDirectory = Path.Combine( Directory.GetCurrentDirectory(), "wwwroot");
+        private readonly string _backupDirectory = Path.Combine( Directory.GetCurrentDirectory(), "Backups");
         
         private void DeleteSite()
         {
-            DirectoryInfo directory = new DirectoryInfo(this.siteDirectory);
+            DirectoryInfo directory = new DirectoryInfo(this._siteDirectory);
 
             foreach (FileInfo file in directory.GetFiles())
             {
@@ -37,14 +31,14 @@ namespace asp_net_core_storycanvas_webhook.Controllers
         private void BackupSite()
         {
             // Specify backup directory in the root of your solution
-            Directory.CreateDirectory(this.backupDirectory);
+            Directory.CreateDirectory(this._backupDirectory);
     
             // Generate a backup file name
             string backupFileName = $"backup_{DateTime.Now:yyyyMMddHHmmss}.zip";
-            string backupFilePath = Path.Combine(this.backupDirectory, backupFileName);
+            string backupFilePath = Path.Combine(this._backupDirectory, backupFileName);
     
             // Create the zip file
-            ZipFile.CreateFromDirectory(this.siteDirectory, backupFilePath,
+            ZipFile.CreateFromDirectory(this._siteDirectory, backupFilePath,
                 CompressionLevel.Optimal, false);
         }
         
@@ -95,7 +89,7 @@ namespace asp_net_core_storycanvas_webhook.Controllers
                     string relativePath = string.Join("", uri.Segments.Take(uri.Segments.Length - 1));
 
                     // Get the data.
-                    byte[]? fileBytes = null;
+                    byte[]? fileBytes;
                     try
                     {
                         fileBytes = await client.GetByteArrayAsync(url);
@@ -108,7 +102,7 @@ namespace asp_net_core_storycanvas_webhook.Controllers
 
                     if (fileBytes != null) {
                         // Figure the local filepath and create it if not existing.
-                        string fullPath = $"{this.siteDirectory}{relativePath}";
+                        string fullPath = $"{this._siteDirectory}{relativePath}";
                         #pragma warning disable CS8600
                         string directory = Path.GetDirectoryName(fullPath);
                         if (string.IsNullOrEmpty(directory))
@@ -138,9 +132,20 @@ namespace asp_net_core_storycanvas_webhook.Controllers
 
                         string find = $"{data.Name}.s3-website.us-east-2.amazonaws.com";
 
+                        // Only proceed if this is and expected http request.
                         if (_httpContextAccessor.HttpContext != null)
                         {
                             string replace = $"{_httpContextAccessor.HttpContext.Request.Host}";
+                            bool useLiveDomain = false;
+                            if (bool.TryParse(_configuration["UseLiveDomainForLinks"], out var parsedVal))
+                            {
+                                useLiveDomain = parsedVal;
+                            }                            
+                            if (useLiveDomain)
+                            { 
+                                replace = data.Domain;
+                            }
+                            
                             // Replace the string you need with data.Domain
                             string newContent = content.Replace(find, replace);
                             // Write the modified content back to the file

@@ -11,8 +11,8 @@ namespace asp_net_core_storycanvas_webhook.Controllers
         
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IConfiguration _configuration;
-        private readonly string _siteDirectory = Path.Combine( Directory.GetCurrentDirectory(), "wwwroot");
-        private readonly string _backupDirectory = Path.Combine( Directory.GetCurrentDirectory(), "Backups");
+        private readonly string _siteDirectory = Path.Combine( AppContext.BaseDirectory, "wwwroot");
+        private readonly string _backupDirectory = Path.Combine( AppContext.BaseDirectory, "Backups");
         
         private void DeleteSite()
         {
@@ -31,14 +31,14 @@ namespace asp_net_core_storycanvas_webhook.Controllers
         private void BackupSite()
         {
             // Specify backup directory in the root of your solution
-            Directory.CreateDirectory(this._backupDirectory);
+            Directory.CreateDirectory(_backupDirectory);
     
             // Generate a backup file name
             string backupFileName = $"backup_{DateTime.Now:yyyyMMddHHmmss}.zip";
-            string backupFilePath = Path.Combine(this._backupDirectory, backupFileName);
+            string backupFilePath = Path.Combine(_backupDirectory, backupFileName);
     
             // Create the zip file
-            ZipFile.CreateFromDirectory(this._siteDirectory, backupFilePath,
+            ZipFile.CreateFromDirectory(_siteDirectory, backupFilePath,
                 CompressionLevel.Optimal, false);
         }
         
@@ -102,7 +102,7 @@ namespace asp_net_core_storycanvas_webhook.Controllers
 
                     if (fileBytes != null) {
                         // Figure the local filepath and create it if not existing.
-                        string fullPath = $"{this._siteDirectory}{relativePath}";
+                        string fullPath = $"{_siteDirectory}{relativePath}";
                         #pragma warning disable CS8600
                         string directory = Path.GetDirectoryName(fullPath);
                         if (string.IsNullOrEmpty(directory))
@@ -135,7 +135,7 @@ namespace asp_net_core_storycanvas_webhook.Controllers
                         // Only proceed if this is and expected http request.
                         if (_httpContextAccessor.HttpContext != null)
                         {
-                            string replace = data.Domain; 
+                            string replace = data.Name; 
                             if (!data.IsLive)
                             { 
                                 replace = $"{_httpContextAccessor.HttpContext.Request.Host}";

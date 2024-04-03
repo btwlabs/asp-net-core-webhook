@@ -1,8 +1,4 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.Hosting;
-using System.Diagnostics;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.AspNetCore.Hosting;
+using System.Runtime.InteropServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +12,10 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddHttpContextAccessor();
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
+if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+{
+    builder.Logging.AddEventLog();
+}
 
 // Configure app settings and environment variables
 builder.Configuration

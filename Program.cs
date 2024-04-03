@@ -7,6 +7,11 @@ using Microsoft.AspNetCore.Hosting;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+// If running as a service, use that.
+if (args.Contains("--service"))
+{
+    builder.Host.UseWindowsService();
+}
 builder.Services.AddControllersWithViews();
 builder.Services.AddHttpContextAccessor();
 builder.Logging.ClearProviders();
@@ -17,12 +22,6 @@ builder.Configuration
     .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
     .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
     .AddEnvironmentVariables();
-
-// If running as a service, use that.
-if (args.Contains("--service"))
-{
-    builder.Host.UseWindowsService();
-}
 
 // Now build the web app
 using var app = builder.Build();

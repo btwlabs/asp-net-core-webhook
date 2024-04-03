@@ -6,6 +6,6 @@ riderModule.iml
 # ignore the actual website files.
 wwwroot/
 .idea/
-appsettings.*
+appsettings.Development.json
 Backups/*
 .run/
